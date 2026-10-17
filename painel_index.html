@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Traçador de Curva I-V · Painel Fotovoltaico</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --fundo: #f4f5fb; --card: #ffffff; --texto: #1e293b; --mudo: #64748b; --borda: #e2e8f0;
+    --primaria: #4f46e5; --primaria-clara: #eef2ff; --ok: #16a34a; --erro: #dc2626; --aviso: #d97706;
+    --grade: #e2e8f0; --sombra: 0 1px 3px rgba(15,23,42,.08), 0 6px 18px rgba(15,23,42,.05);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --fundo: #0f172a; --card: #1e293b; --texto: #e2e8f0; --mudo: #94a3b8; --borda: #334155;
+      --primaria: #818cf8; --primaria-clara: #26304f; --grade: #334155;
+      --sombra: 0 1px 3px rgba(0,0,0,.4);
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--fundo); color: var(--texto);
+         font-family: 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif; line-height: 1.4; }
+  .pagina { max-width: 1200px; margin: 0 auto; padding: 18px 16px 40px; }
+  header { display: flex; flex-wrap: wrap; gap: 10px 20px; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  h1 { font-size: 1.5rem; margin: 0; color: var(--primaria); }
+  .sub { color: var(--mudo); font-size: .88rem; margin-top: 2px; }
+  .selo { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px;
+          background: var(--card); border: 1px solid var(--borda); font-size: .85rem; box-shadow: var(--sombra); }
+  .ponto { width: 9px; height: 9px; border-radius: 50%; background: var(--mudo); }
+  .ponto.ok { background: var(--ok); } .ponto.velho { background: var(--aviso); } .ponto.erro { background: var(--erro); }
+  .barra { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 14px; }
+  button, select, input[type=date] {
+    font: inherit; font-size: .9rem; color: var(--texto); background: var(--card);
+    border: 1px solid var(--borda); border-radius: 10px; padding: 8px 12px; cursor: pointer; }
+  button:hover { border-color: var(--primaria); }
+  button.primario { background: var(--primaria); color: #fff; border-color: var(--primaria); }
+  button:disabled { opacity: .45; cursor: default; }
+  .espaco { flex: 1; }
+  .card { background: var(--card); border: 1px solid var(--borda); border-radius: 16px; padding: 18px; box-shadow: var(--sombra); }
+  .card h2 { font-size: 1.05rem; margin: 0 0 12px; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .card h2 small { font-weight: 400; color: var(--mudo); font-size: .8rem; }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(135px, 1fr)); gap: 10px; margin-bottom: 14px; }
+  .kpi { background: var(--card); border: 1px solid var(--borda); border-radius: 14px; padding: 12px 14px; box-shadow: var(--sombra); }
+  .kpi .r { font-size: .74rem; color: var(--mudo); text-transform: uppercase; letter-spacing: .04em; }
+  .kpi .v { font-size: 1.45rem; font-weight: 700; font-family: 'Cascadia Mono', 'Consolas', 'Courier New', monospace; color: var(--primaria); }
+  .kpi .v small { font-size: .75rem; color: var(--mudo); font-weight: 500; }
+  .kpi .d { font-size: .74rem; color: var(--mudo); min-height: 1em; }
+  .grade2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 14px; margin-bottom: 14px; }
+  .caixa-grafico { position: relative; height: 320px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; align-items: center; }
+  .chip { border-radius: 999px; padding: 4px 11px; font-size: .82rem; border: 2px solid var(--cor, var(--borda));
+          background: transparent; color: var(--texto); }
+  .chip.on { background: var(--cor); color: #fff; }
+  .chip.vazio { border-style: dashed; opacity: .45; cursor: default; }
+  .chip.falha { border-color: var(--erro); }
+  label.opcao { font-size: .85rem; color: var(--mudo); display: inline-flex; gap: 6px; align-items: center; margin-left: 8px; }
+  .tabela-rolagem { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: .86rem; }
+  th, td { padding: 8px 10px; text-align: right; border-bottom: 1px solid var(--borda); white-space: nowrap; }
+  th:first-child, td:first-child, th:nth-child(2), td:nth-child(2) { text-align: left; }
+  th { color: var(--mudo); font-weight: 600; font-size: .76rem; text-transform: uppercase; letter-spacing: .03em; }
+  td { font-family: 'Cascadia Mono', 'Consolas', 'Courier New', monospace; }
+  td:first-child, td:nth-child(2) { font-family: inherit; }
+  tbody tr { cursor: pointer; } tbody tr:hover { background: var(--primaria-clara); }
+  tr.foco { background: var(--primaria-clara); }
+  .tag { font-size: .72rem; padding: 2px 8px; border-radius: 999px; font-family: inherit; }
+  .tag.ok { background: #dcfce7; color: #166534; } .tag.falha { background: #fee2e2; color: #991b1b; }
+  .tag.man { background: #e0e7ff; color: #3730a3; margin-left: 4px; }
+  .pos { color: var(--ok); } .neg { color: var(--erro); }
+  .vazio-msg { text-align: center; padding: 50px 20px; color: var(--mudo); }
+  .vazio-msg b { color: var(--texto); }
+  .info { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 6px 16px; font-size: .88rem; }
+  .info span { color: var(--mudo); }
+  .nota { font-size: .8rem; color: var(--mudo); margin-top: 10px; }
+  a { color: var(--primaria); }
+  footer { color: var(--mudo); font-size: .8rem; text-align: center; margin-top: 26px; }
+</style>
+</head>
+<body>
+<div class="pagina">
+
+  <header>
+    <div>
+      <h1>⚡ Traçador de Curva I-V</h1>
+      <div class="sub">Raspberry Pi Pico 2 W · coletas automáticas de hora em hora · modelo de 5 parâmetros</div>
+    </div>
+    <div class="selo" id="selo"><span class="ponto" id="ponto"></span><span id="selo-txt">carregando…</span></div>
+  </header>
+
+  <div class="barra">
+    <button id="b-ant" title="Dia anterior">◀</button>
+    <select id="sel-dia" aria-label="Escolher dia"></select>
+    <button id="b-prox" title="Próximo dia">▶</button>
+    <button id="b-ultimo">Último dia</button>
+    <span class="espaco"></span>
+    <button id="b-csv-dia">⬇ CSV do dia</button>
+    <button id="b-json-dia">⬇ JSON do dia</button>
+    <button class="primario" id="b-atualizar">↻ Atualizar</button>
+  </div>
+
+  <div id="conteudo">
+    <div class="vazio-msg">Carregando dados…</div>
+  </div>
+
+  <footer>
+    Dados lidos de <code>data/</code> neste mesmo site (GitHub Pages). A página se atualiza sozinha a cada 5 minutos.
+  </footer>
+</div>
+
+<script>
+'use strict';
+const $ = s => document.querySelector(s);
+const pad = n => String(n).padStart(2, '0');
+const fmt = (x, c = 2) => (x === null || x === undefined || Number.isNaN(x)) ? '—' : Number(x).toFixed(c);
+const estado = { dias: [], indice: null, dia: null, medicoes: [], curvas: {}, visiveis: new Set(), foco: null,
+                 mostrarSim: true, graficos: {}, hist: { n: 14, dados: null } };
+
+// ---------- utilidades ----------
+async function getJSON(url) {
+  const r = await fetch(url + (url.includes('?') ? '&' : '?') + 't=' + Date.now(), { cache: 'no-store' });
+  if (!r.ok) throw new Error(url + ' → HTTP ' + r.status);
+  return r.json();
+}
+function corHora(i, n) {                                   // azul (manhã) → laranja → vermelho (tarde)
+  const t = n <= 1 ? 0 : i / (n - 1);
+  return `hsl(${Math.round(225 - 215 * t)}, 80%, ${46 + 4 * Math.sin(t * Math.PI)}%)`;
+}
+const cssVar = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+function dataBR(iso) { const [a, m, d] = iso.split('-'); return `${d}/${m}/${a}`; }
+function horaDec(m) { const [h, mi] = m.hora.split(':').map(Number); return h + mi / 60; }
+function baixar(nome, texto, tipo) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([texto], { type: tipo }));
+  a.download = nome; document.body.appendChild(a); a.click(); a.remove();
+}
+function ha(isoTs) {
+  const min = Math.round((Date.now() - new Date(isoTs).getTime()) / 60000);
+  if (min < 1) return 'agora';
+  if (min < 60) return `há ${min} min`;
+  if (min < 1440) return `há ${Math.floor(min / 60)} h ${min % 60} min`;
+  return `há ${Math.floor(min / 1440)} dia(s)`;
+}
+function energiaWh(meds) {                                 // integra Pmax(t) pelo método dos trapézios
+  const p = meds.filter(m => m.ok && m.medido).sort((a, b) => horaDec(a) - horaDec(b));
+  let e = 0;
+  for (let i = 1; i < p.length; i++) e += (p[i].medido.pmax + p[i - 1].medido.pmax) / 2 * (horaDec(p[i]) - horaDec(p[i - 1]));
+  return p.length > 1 ? e : null;
+}
+function desvio(m) {
+  if (!m.ok || !m.medido || !m.simulado || !m.simulado.pmax) return null;
+  return (m.medido.pmax - m.simulado.pmax) / m.simulado.pmax * 100;
+}
+
+// ---------- carregamento ----------
+async function carregarIndice() {
+  try {
+    estado.indice = await getJSON('data/dias.json');
+    estado.dias = (estado.indice.dias || []).slice().sort();
+  } catch (e) {
+    estado.indice = null; estado.dias = [];
+  }
+  const sel = $('#sel-dia');
+  sel.innerHTML = estado.dias.slice().reverse().map(d => `<option value="${d}">${dataBR(d)}</option>`).join('');
+}
+
+async function carregarDia(data) {
+  estado.dia = data;
+  estado.foco = null;
+  sel_dia_ui();
+  const dia = await getJSON(`data/dias/${data}.json`);
+  estado.medicoes = (dia.medicoes || []).slice().sort((a, b) => a.id.localeCompare(b.id));
+  estado.curvas = {};
+  const oks = estado.medicoes.filter(m => m.ok);
+  await Promise.allSettled(oks.map(async m => {
+    estado.curvas[m.id] = await getJSON(`data/curvas/${m.id}.json`);
+  }));
+  estado.visiveis = new Set(oks.filter(m => estado.curvas[m.id]).map(m => m.id));
+  desenhar();
+}
+
+function sel_dia_ui() {
+  $('#sel-dia').value = estado.dia;
+  const i = estado.dias.indexOf(estado.dia);
+  $('#b-ant').disabled = i <= 0;
+  $('#b-prox').disabled = i < 0 || i >= estado.dias.length - 1;
+}
+
+function atualizarSelo() {
+  const ponto = $('#ponto'), txt = $('#selo-txt');
+  const ult = estado.medicoes.length && estado.dia === estado.dias[estado.dias.length - 1]
+    ? estado.medicoes[estado.medicoes.length - 1] : null;
+  if (!estado.dias.length) { ponto.className = 'ponto'; txt.textContent = 'sem dados ainda'; return; }
+  if (ult) {
+    const horas = (Date.now() - new Date(ult.timestamp).getTime()) / 3600000;
+    ponto.className = 'ponto ' + (!ult.ok ? 'erro' : horas > 26 ? 'velho' : 'ok');
+    txt.textContent = `Última coleta: ${dataBR(ult.data)} ${ult.hora} (${ha(ult.timestamp)})`;
+  } else {
+    ponto.className = 'ponto velho'; txt.textContent = `Exibindo ${dataBR(estado.dia)}`;
+  }
+}
+
+// ---------- desenho ----------
+function desenhar() {
+  atualizarSelo();
+  const c = $('#conteudo');
+  if (!estado.dias.length) {
+    c.innerHTML = `<div class="card vazio-msg"><b>Ainda não há dados publicados.</b><br>
+      O Pico faz a primeira coleta às 07:00 (horário local) e envia para <code>docs/data/</code> neste repositório.<br>
+      Para testar o painel sem esperar, rode <code>ferramentas/gerar_dados_exemplo.py</code>.</div>`;
+    return;
+  }
+  const meds = estado.medicoes;
+  const horas = (estado.indice && estado.indice.horas) || [7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+  const painel = estado.indice && estado.indice.painel;
+  c.innerHTML = `
+    <div class="kpis" id="kpis"></div>
+    <div class="card" style="margin-bottom:14px">
+      <h2>Curvas do dia <small id="leg-curvas"></small></h2>
+      <div class="chips" id="chips"></div>
+      <div class="grade2" style="margin:0">
+        <div><div class="caixa-grafico"><canvas id="g-iv"></canvas></div></div>
+        <div><div class="caixa-grafico"><canvas id="g-pv"></canvas></div></div>
+      </div>
+      <div class="nota">● marca o ponto de máxima potência de cada medição. Linha cheia = medido · tracejada = simulado (mesma temperatura e irradiância estimada pela Isc).</div>
+    </div>
+    <div class="grade2">
+      <div class="card"><h2>Potência e irradiância ao longo do dia</h2><div class="caixa-grafico"><canvas id="g-perfil"></canvas></div></div>
+      <div class="card"><h2>Tensão e temperatura</h2><div class="caixa-grafico"><canvas id="g-temp"></canvas></div></div>
+    </div>
+    <div class="card" style="margin-bottom:14px">
+      <h2>Medições de ${dataBR(estado.dia)} <small>clique numa linha para destacar a curva</small></h2>
+      <div class="tabela-rolagem"><table id="tabela"></table></div>
+    </div>
+    <div class="card" style="margin-bottom:14px">
+      <h2>Histórico <small>
+        <select id="hist-n"><option value="7">7 dias</option><option value="14">14 dias</option><option value="30">30 dias</option><option value="90">90 dias</option><option value="365">1 ano</option></select>
+        <button id="b-csv-hist">⬇ CSV do período</button></small></h2>
+      <div class="caixa-grafico"><canvas id="g-hist"></canvas></div>
+      <div class="nota" id="hist-nota"></div>
+    </div>
+    ${painel ? `<div class="card"><h2>Painel monitorado <small>valores de placa (STC)</small></h2>
+      <div class="info">
+        <div><span>Voc</span> ${fmt(painel.voc, 1)} V</div><div><span>Isc</span> ${fmt(painel.isc, 2)} A</div>
+        <div><span>Vmp</span> ${fmt(painel.vmp, 1)} V</div><div><span>Imp</span> ${fmt(painel.imp, 2)} A</div>
+        <div><span>Pmax</span> ${fmt(painel.vmp * painel.imp, 1)} W</div><div><span>Células</span> ${painel.ns}</div>
+        <div><span>α Isc</span> ${painel.alfa_isc} A/K</div><div><span>β Voc</span> ${painel.beta_voc} V/K</div>
+      </div></div>` : ''}`;
+  desenharKPIs();
+  desenharChips(horas);
+  desenharCurvas();
+  desenharPerfil();
+  desenharTabela();
+  const hn = $('#hist-n'); hn.value = String(estado.hist.n);
+  hn.onchange = () => { estado.hist.n = +hn.value; carregarHistorico(); };
+  $('#b-csv-hist').onclick = exportarHistoricoCSV;
+  carregarHistorico();
+}
+
+function desenharKPIs() {
+  const meds = estado.medicoes;
+  const ok = meds.filter(m => m.ok && m.medido);
+  const ref = (estado.foco && meds.find(m => m.id === estado.foco)) || ok[ok.length - 1];
+  const el = $('#kpis');
+  if (!ref || !ref.medido) {
+    el.innerHTML = `<div class="kpi" style="grid-column:1/-1"><div class="r">Sem medições válidas neste dia</div></div>`;
+    return;
+  }
+  const m = ref.medido, dv = desvio(ref), e = energiaWh(meds);
+  const quando = estado.foco ? `${ref.hora}` : `última · ${ref.hora}`;
+  const k = (r, v, u, d = '') => `<div class="kpi"><div class="r">${r}</div><div class="v">${v}<small> ${u}</small></div><div class="d">${d}</div></div>`;
+  el.innerHTML =
+    k('Potência máx.', fmt(m.pmax, 1), 'W', quando) +
+    k('Voc', fmt(m.voc, 2), 'V', ref.simulado ? `sim. ${fmt(ref.simulado.voc, 2)} V` : '') +
+    k('Isc', fmt(m.isc, 2), 'A', ref.simulado ? `sim. ${fmt(ref.simulado.isc, 2)} A` : '') +
+    k('Vmp', fmt(m.vmp, 2), 'V') + k('Imp', fmt(m.imp, 2), 'A') +
+    k('Fator de forma', fmt(m.ff, 3), '', 'Pmax / (Voc·Isc)') +
+    k('Temperatura', fmt(ref.temperatura, 1), '°C', ref.temp_sensor === false ? 'sem sensor (25 °C)' : 'DS18B20') +
+    k('Irradiância', fmt(ref.irradiancia, 0), 'W/m²', ref.irrad_origem === 'isc' ? 'estimada pela Isc' : (ref.irrad_origem || '')) +
+    k('Medido vs simulado', dv === null ? '—' : (dv > 0 ? '+' : '') + fmt(dv, 1), '%', 'diferença na Pmax') +
+    k('Energia do dia', e === null ? '—' : fmt(e, 0), 'Wh', 'estimada (trapézios)');
+}
+
+function desenharChips(horas) {
+  const el = $('#chips');
+  const ok = estado.medicoes.filter(m => m.ok && estado.curvas[m.id]);
+  const todas = estado.medicoes;
+  const ids = {};
+  todas.forEach(m => ids[m.hora] = m);
+  const horasLista = Array.from(new Set([...horas.map(h => `${pad(h)}:00`), ...todas.map(m => m.hora)])).sort();
+  const idxCor = {}; ok.forEach((m, i) => idxCor[m.id] = i);
+  el.innerHTML = horasLista.map(h => {
+    const m = ids[h];
+    if (!m) return `<button class="chip vazio" disabled title="sem medição">${h}</button>`;
+    if (!m.ok || !estado.curvas[m.id]) return `<button class="chip falha" disabled title="${m.erro || 'sem curva'}">${h} ✕</button>`;
+    const on = estado.visiveis.has(m.id);
+    return `<button class="chip ${on ? 'on' : ''}" style="--cor:${corHora(idxCor[m.id], ok.length)}" data-id="${m.id}">${h}</button>`;
+  }).join('') +
+  `<button class="chip" id="chip-todas">todas</button><button class="chip" id="chip-nenhuma">nenhuma</button>
+   <label class="opcao"><input type="checkbox" id="chk-sim" ${estado.mostrarSim ? 'checked' : ''}> mostrar simulada</label>`;
+  el.querySelectorAll('.chip[data-id]').forEach(b => b.onclick = () => {
+    const id = b.dataset.id;
+    estado.visiveis.has(id) ? estado.visiveis.delete(id) : estado.visiveis.add(id);
+    desenharChips(horas); desenharCurvas();
+  });
+  $('#chip-todas').onclick = () => { ok.forEach(m => estado.visiveis.add(m.id)); estado.foco = null; atualizarTudoSemRecarregar(); };
+  $('#chip-nenhuma').onclick = () => { estado.visiveis.clear(); atualizarTudoSemRecarregar(); };
+  $('#chk-sim').onchange = e => { estado.mostrarSim = e.target.checked; desenharCurvas(); };
+}
+function atualizarTudoSemRecarregar() {
+  const horas = (estado.indice && estado.indice.horas) || [7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+  desenharKPIs(); desenharChips(horas); desenharCurvas(); desenharTabela();
+}
+
+function opcoesBase(tituloX, tituloY) {
+  const texto = cssVar('--mudo'), grade = cssVar('--grade');
+  return {
+    responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: 'nearest', intersect: false },
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { type: 'linear', title: { display: true, text: tituloX, color: texto }, ticks: { color: texto }, grid: { color: grade } },
+      y: { beginAtZero: true, title: { display: true, text: tituloY, color: texto }, ticks: { color: texto }, grid: { color: grade } },
+    },
+  };
+}
+function recriar(id, config) {
+  if (estado.graficos[id]) estado.graficos[id].destroy();
+  estado.graficos[id] = new Chart($('#' + id), config);
+}
+
+function desenharCurvas() {
+  const ok = estado.medicoes.filter(m => m.ok && estado.curvas[m.id]);
+  const dsIV = [], dsPV = [];
+  ok.forEach((m, i) => {
+    if (!estado.visiveis.has(m.id)) return;
+    const cor = corHora(i, ok.length);
+    const opaco = estado.foco && estado.foco !== m.id ? 0.18 : 1;
+    const cv = estado.curvas[m.id], cm = cv.curva_medida, cs = cv.curva_simulada;
+    const col = a => cor.replace('hsl(', 'hsla(').replace(')', `, ${a})`);
+    const larg = estado.foco === m.id ? 3.5 : 2;
+    const pIV = (v, c) => v.map((x, k) => ({ x, y: c[k] }));
+    const pPV = (v, c) => v.map((x, k) => ({ x, y: x * c[k] }));
+    dsIV.push({ label: `${m.hora} medido`, data: pIV(cm.v, cm.i), borderColor: col(opaco), borderWidth: larg, pointRadius: 0, tension: .25, showLine: true });
+    dsPV.push({ label: `${m.hora} medido`, data: pPV(cm.v, cm.i), borderColor: col(opaco), borderWidth: larg, pointRadius: 0, tension: .25, showLine: true });
+    if (estado.mostrarSim && cs) {
+      dsIV.push({ label: `${m.hora} simulado`, data: pIV(cs.v, cs.i), borderColor: col(opaco * .8), borderWidth: 1.5, borderDash: [6, 4], pointRadius: 0, tension: .25, showLine: true });
+      dsPV.push({ label: `${m.hora} simulado`, data: pPV(cs.v, cs.i), borderColor: col(opaco * .8), borderWidth: 1.5, borderDash: [6, 4], pointRadius: 0, tension: .25, showLine: true });
+    }
+    if (m.medido) {
+      dsIV.push({ label: `${m.hora} MPP`, data: [{ x: m.medido.vmp, y: m.medido.imp }], borderColor: col(opaco), backgroundColor: col(opaco), pointRadius: 5, showLine: false });
+      dsPV.push({ label: `${m.hora} MPP`, data: [{ x: m.medido.vmp, y: m.medido.pmax }], borderColor: col(opaco), backgroundColor: col(opaco), pointRadius: 5, showLine: false });
+    }
+  });
+  const tip = (u) => ({ callbacks: { label: c => `${c.dataset.label}: ${c.parsed.y.toFixed(2)} ${u} @ ${c.parsed.x.toFixed(2)} V` } });
+  const o1 = opcoesBase('Tensão (V)', 'Corrente (A)'); o1.plugins.tooltip = tip('A');
+  const o2 = opcoesBase('Tensão (V)', 'Potência (W)'); o2.plugins.tooltip = tip('W');
+  recriar('g-iv', { type: 'scatter', data: { datasets: dsIV }, options: o1 });
+  recriar('g-pv', { type: 'scatter', data: { datasets: dsPV }, options: o2 });
+  $('#leg-curvas').textContent = `${estado.visiveis.size} de ${ok.length} curvas`;
+}
+
+function desenharPerfil() {
+  const ok = estado.medicoes.filter(m => m.ok && m.medido);
+  const texto = cssVar('--mudo'), grade = cssVar('--grade'), prim = cssVar('--primaria');
+  const xs = estado.medicoes.map(horaDec);
+  const xmin = Math.floor(Math.min(...xs, 7)) - 1, xmax = Math.ceil(Math.max(...xs, 16)) + 1;
+  const eixoX = { type: 'linear', min: xmin, max: xmax, ticks: { color: texto, stepSize: 1, callback: v => Number.isInteger(v) ? pad(v) + ':00' : '' }, grid: { color: grade } };
+  const pt = (m, f) => ({ x: horaDec(m), y: f(m) });
+  const base = { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: 'index', intersect: false },
+                 plugins: { legend: { labels: { color: texto, boxWidth: 14 } } } };
+  recriar('g-perfil', {
+    type: 'line',
+    data: { datasets: [
+      { label: 'Pmax medida (W)', data: ok.map(m => pt(m, x => x.medido.pmax)), borderColor: prim, backgroundColor: prim, borderWidth: 3, tension: .3, pointRadius: 4, yAxisID: 'y' },
+      { label: 'Pmax simulada (W)', data: ok.filter(m => m.simulado).map(m => pt(m, x => x.simulado.pmax)), borderColor: '#10b981', borderDash: [6, 4], borderWidth: 2, tension: .3, pointRadius: 2, yAxisID: 'y' },
+      { label: 'Irradiância est. (W/m²)', data: ok.filter(m => m.irradiancia != null).map(m => pt(m, x => x.irradiancia)), borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,.15)', fill: true, borderWidth: 2, tension: .3, pointRadius: 3, yAxisID: 'y1' },
+    ] },
+    options: { ...base, scales: { x: eixoX,
+      y: { beginAtZero: true, position: 'left', title: { display: true, text: 'Potência (W)', color: texto }, ticks: { color: texto }, grid: { color: grade } },
+      y1: { beginAtZero: true, position: 'right', title: { display: true, text: 'Irradiância (W/m²)', color: texto }, ticks: { color: texto }, grid: { drawOnChartArea: false } } } },
+  });
+  recriar('g-temp', {
+    type: 'line',
+    data: { datasets: [
+      { label: 'Voc medida (V)', data: ok.map(m => pt(m, x => x.medido.voc)), borderColor: '#8b5cf6', backgroundColor: '#8b5cf6', borderWidth: 3, tension: .3, pointRadius: 4, yAxisID: 'y' },
+      { label: 'Temperatura (°C)', data: estado.medicoes.filter(m => m.temperatura != null).map(m => pt(m, x => x.temperatura)), borderColor: '#ef4444', backgroundColor: '#ef4444', borderWidth: 2, tension: .3, pointRadius: 3, yAxisID: 'y1' },
+    ] },
+    options: { ...base, scales: { x: eixoX,
+      y: { beginAtZero: false, position: 'left', title: { display: true, text: 'Voc (V)', color: texto }, ticks: { color: texto }, grid: { color: grade } },
+      y1: { beginAtZero: false, position: 'right', title: { display: true, text: 'Temperatura (°C)', color: texto }, ticks: { color: texto }, grid: { drawOnChartArea: false } } } },
+  });
+}
+
+function desenharTabela() {
+  const linhas = estado.medicoes.map(m => {
+    const md = m.medido || {}, sm = m.simulado || {}, dv = desvio(m);
+    const tag = m.ok ? '<span class="tag ok">ok</span>' : `<span class="tag falha" title="${m.erro || ''}">falha</span>`;
+    const man = m.manual ? '<span class="tag man">manual</span>' : '';
+    const cls = estado.foco === m.id ? 'foco' : '';
+    const dl = m.ok && estado.curvas[m.id] ? `<button data-curva="${m.id}" title="Baixar pontos da curva I-V">⬇</button>` : '';
+    return `<tr class="${cls}" data-id="${m.id}"><td>${m.hora}</td><td>${tag}${man}${m.ok ? '' : ' ' + (m.erro || '')}</td>
+      <td>${fmt(m.temperatura, 1)}</td><td>${fmt(m.irradiancia, 0)}</td>
+      <td>${fmt(md.voc)}</td><td>${fmt(md.isc)}</td><td>${fmt(md.vmp)}</td><td>${fmt(md.imp)}</td>
+      <td><b>${fmt(md.pmax, 1)}</b></td><td>${fmt(md.ff, 3)}</td><td>${fmt(sm.pmax, 1)}</td>
+      <td class="${dv === null ? '' : dv >= 0 ? 'pos' : 'neg'}">${dv === null ? '—' : (dv > 0 ? '+' : '') + dv.toFixed(1) + '%'}</td><td>${dl}</td></tr>`;
+  }).join('');
+  $('#tabela').innerHTML = `<thead><tr><th>Hora</th><th>Status</th><th>T (°C)</th><th>G (W/m²)</th><th>Voc (V)</th><th>Isc (A)</th>
+    <th>Vmp (V)</th><th>Imp (A)</th><th>Pmax (W)</th><th>FF</th><th>Pmax sim. (W)</th><th>Δ</th><th></th></tr></thead><tbody>${linhas}</tbody>`;
+  $('#tabela').querySelectorAll('tbody tr').forEach(tr => tr.onclick = ev => {
+    if (ev.target.closest('button')) return;
+    const id = tr.dataset.id;
+    if (!estado.curvas[id] && !estado.medicoes.find(m => m.id === id).ok) return;
+    estado.foco = estado.foco === id ? null : id;
+    if (estado.foco) estado.visiveis.add(id);
+    atualizarTudoSemRecarregar();
+  });
+  $('#tabela').querySelectorAll('button[data-curva]').forEach(b => b.onclick = () => exportarCurva(b.dataset.curva));
+}
+
+// ---------- histórico ----------
+async function carregarHistorico() {
+  const n = estado.hist.n;
+  const lista = estado.dias.slice(-n);
+  $('#hist-nota').textContent = `Carregando ${lista.length} dia(s)…`;
+  const res = await Promise.allSettled(lista.map(d => d === estado.dia && estado.medicoes.length
+    ? Promise.resolve({ data: d, medicoes: estado.medicoes }) : getJSON(`data/dias/${d}.json`)));
+  const dados = res.filter(r => r.status === 'fulfilled').map(r => r.value).sort((a, b) => a.data.localeCompare(b.data));
+  estado.hist.dados = dados;
+  const texto = cssVar('--mudo'), grade = cssVar('--grade'), prim = cssVar('--primaria');
+  const resumo = dados.map(d => {
+    const ok = d.medicoes.filter(m => m.ok && m.medido);
+    return { data: d.data, e: energiaWh(d.medicoes), pmax: ok.length ? Math.max(...ok.map(m => m.medido.pmax)) : null,
+             t: ok.length ? ok.reduce((s, m) => s + (m.temperatura || 0), 0) / ok.length : null, n: ok.length };
+  });
+  const rotulos = resumo.map(r => r.data.slice(8) + '/' + r.data.slice(5, 7));
+  recriar('g-hist', {
+    data: { labels: rotulos, datasets: [
+      { type: 'bar', label: 'Energia estimada (Wh)', data: resumo.map(r => r.e), backgroundColor: 'rgba(79,70,229,.55)', yAxisID: 'y' },
+      { type: 'line', label: 'Pmax do dia (W)', data: resumo.map(r => r.pmax), borderColor: '#ef4444', backgroundColor: '#ef4444', tension: .25, pointRadius: 3, yAxisID: 'y1' },
+    ] },
+    options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { labels: { color: texto, boxWidth: 14 } } },
+      scales: { x: { ticks: { color: texto }, grid: { color: grade } },
+        y: { beginAtZero: true, position: 'left', title: { display: true, text: 'Wh', color: texto }, ticks: { color: texto }, grid: { color: grade } },
+        y1: { beginAtZero: true, position: 'right', title: { display: true, text: 'W', color: texto }, ticks: { color: texto }, grid: { drawOnChartArea: false } } } },
+  });
+  const totE = resumo.reduce((s, r) => s + (r.e || 0), 0);
+  $('#hist-nota').textContent = `${dados.length} dia(s) · energia estimada total ${totE.toFixed(0)} Wh (integral das 10 medições do dia, só entre a primeira e a última coleta).`;
+}
+
+// ---------- exportações ----------
+const CAB = 'id;data;hora;ok;manual;temperatura_C;irradiancia_Wm2;voc_V;isc_A;vmp_V;imp_A;pmax_W;ff;sim_voc_V;sim_isc_A;sim_vmp_V;sim_imp_A;sim_pmax_W;erro';
+function linhaCSV(m) {
+  const a = m.medido || {}, s = m.simulado || {};
+  return [m.id, m.data, m.hora, m.ok ? 1 : 0, m.manual ? 1 : 0, m.temperatura, m.irradiancia, a.voc, a.isc, a.vmp, a.imp, a.pmax, a.ff,
+          s.voc, s.isc, s.vmp, s.imp, s.pmax, (m.erro || '').replace(/;/g, ',')]
+    .map(x => x === null || x === undefined ? '' : String(x).replace('.', ',')).join(';');
+}
+function exportarDiaCSV() { baixar(`tracador_${estado.dia}.csv`, '\ufeff' + [CAB, ...estado.medicoes.map(linhaCSV)].join('\n'), 'text/csv'); }
+function exportarDiaJSON() { baixar(`tracador_${estado.dia}.json`, JSON.stringify({ data: estado.dia, medicoes: estado.medicoes.map(m => ({ ...m, curvas: estado.curvas[m.id] || null })) }, null, 1), 'application/json'); }
+function exportarHistoricoCSV() {
+  const d = estado.hist.dados || [];
+  baixar(`tracador_historico_${d.length}dias.csv`, '\ufeff' + [CAB, ...d.flatMap(x => x.medicoes.map(linhaCSV))].join('\n'), 'text/csv');
+}
+function exportarCurva(id) {
+  const c = estado.curvas[id]; if (!c) return;
+  const cm = c.curva_medida, cs = c.curva_simulada;
+  const l = ['v_medida_V;i_medida_A;p_medida_W;v_simulada_V;i_simulada_A'];
+  for (let k = 0; k < Math.max(cm.v.length, cs ? cs.v.length : 0); k++)
+    l.push([cm.v[k], cm.i[k], cm.v[k] !== undefined ? (cm.v[k] * cm.i[k]).toFixed(3) : '', cs ? cs.v[k] : '', cs ? cs.i[k] : ''].map(x => x === undefined || x === null ? '' : String(x).replace('.', ',')).join(';'));
+  baixar(`curva_iv_${id}.csv`, '\ufeff' + l.join('\n'), 'text/csv');
+}
+
+// ---------- eventos ----------
+async function irParaDia(d) {
+  try { await carregarDia(d); }
+  catch (e) { $('#conteudo').innerHTML = `<div class="card vazio-msg"><b>Não foi possível carregar ${dataBR(d)}</b><br>${e.message}</div>`; }
+}
+$('#sel-dia').onchange = e => irParaDia(e.target.value);
+$('#b-ant').onclick = () => { const i = estado.dias.indexOf(estado.dia); if (i > 0) irParaDia(estado.dias[i - 1]); };
+$('#b-prox').onclick = () => { const i = estado.dias.indexOf(estado.dia); if (i < estado.dias.length - 1) irParaDia(estado.dias[i + 1]); };
+$('#b-ultimo').onclick = () => estado.dias.length && irParaDia(estado.dias[estado.dias.length - 1]);
+$('#b-csv-dia').onclick = exportarDiaCSV;
+$('#b-json-dia').onclick = exportarDiaJSON;
+async function recarregar(manterDia) {
+  const dia = manterDia ? estado.dia : null;
+  await carregarIndice();
+  if (!estado.dias.length) { desenhar(); return; }
+  await irParaDia(dia && estado.dias.includes(dia) ? dia : estado.dias[estado.dias.length - 1]);
+}
+$('#b-atualizar').onclick = () => recarregar(true);
+setInterval(() => recarregar(true), 5 * 60 * 1000);
+recarregar(false);
+</script>
+</body>
+</html>
