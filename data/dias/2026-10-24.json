@@ -1,0 +1,1 @@
+{"medicoes": [{"simulado": null, "id": "2026-10-24_0800", "manual": false, "hora": "08:00", "timestamp": "2026-10-24T08:12:27-04:00", "erro": "sem luz (Voc=0.06 V)", "ok": false, "temperatura": 32.0, "data": "2026-10-24", "temp_sensor": true, "irradiancia": null, "irrad_origem": null, "medido": null}], "data": "2026-10-24"}
